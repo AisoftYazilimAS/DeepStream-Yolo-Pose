@@ -1,178 +1,175 @@
-# DeepStream-Yolo-Pose
+# DeepStream YOLOv8-Pose
 
-NVIDIA DeepStream SDK 8.0 / 7.1 / 7.0 / 6.4 / 6.3 / 6.2 / 6.1.1 / 6.1 / 6.0.1 / 6.0 application for YOLO-Pose models
+NVIDIA DeepStream SDK ile YOLOv8-Pose modellerini çalıştırmak için geliştirilmiş uygulama.
 
---------------------------------------------------------------------------------------------------
-### YOLO object detection models and other infos: https://github.com/marcoslucianops/DeepStream-Yolo
---------------------------------------------------------------------------------------------------
-### Important: Please export the ONNX model with the new export file, generate the TensorRT engine again with the updated files, and use the new config_infer_primary file according to your model
---------------------------------------------------------------------------------------------------
+## Özellikler
 
-### Getting started
+- ✅ YOLOv8-Pose model desteği
+- ✅ Özel eğitilmiş modeller için destek
+- ✅ Gerçek zamanlı pose estimation
+- ✅ 17 keypoint detection
+- ✅ Skeleton visualization
+- ✅ Multi-class detection
+- ✅ Python ve C++ implementasyonu
 
-* [Supported models](#supported-models)
-* [Instructions](#basic-usage)
-* [YOLOv7-Pose usage](docs/YOLOv7_Pose.md)
-* [YOLOv8-Pose usage](docs/YOLOv8_Pose.md)
-* [YOLO11-Pose usage](docs/YOLO11_Pose.md)
-* [YOLO-NAS-Pose usage](docs/YOLONAS_Pose.md)
-* [NMS configuration](#nms-configuration)
-* [Detection threshold configuration](#detection-threshold-configuration)
+## Gereksinimler
 
-##
+- NVIDIA DeepStream SDK 6.0+
+- CUDA 12.1+
+- TensorRT 8.5+
+- GStreamer 1.0
+- Python 3.8+ (Python versiyonu için)
 
-### Supported models
+## Kurulum
 
-* [YOLO-NAS-Pose](https://github.com/Deci-AI/super-gradients/blob/master/YOLONAS-POSE.md)
-* [YOLO11-Pose](https://github.com/ultralytics/ultralytics)
-* [YOLOv8-Pose](https://github.com/ultralytics/ultralytics)
-* [YOLOv7-Pose](https://github.com/WongKinYiu/yolov7)
+### 1. Repository'yi klonlayın
 
-##
-
-### Instructions
-
-#### 1. Download the DeepStream-Yolo-Pose repo
-
-```
-git clone https://github.com/marcoslucianops/DeepStream-Yolo-Pose.git
+```bash
+git clone https://github.com/AisoftYazilimAS/DeepStream-Yolo-Pose.git
 cd DeepStream-Yolo-Pose
 ```
 
-#### 3. Compile the libs
+### 2. Custom parser'ı derleyin
 
-3.1. Set the `CUDA_VER` according to your DeepStream version
-
-```
-export CUDA_VER=XY.Z
-```
-
-* x86 platform
-
-  ```
-  DeepStream 8.0 = 12.8
-  DeepStream 7.1 = 12.6
-  DeepStream 7.0 / 6.4 = 12.2
-  DeepStream 6.3 = 12.1
-  DeepStream 6.2 = 11.8
-  DeepStream 6.1.1 = 11.7
-  DeepStream 6.1 = 11.6
-  DeepStream 6.0.1 / 6.0 = 11.4
-  ```
-
-* Jetson platform
-
-  ```
-  DeepStream 8.0 = 13.0
-  DeepStream 7.1 = 12.6
-  DeepStream 7.0 / 6.4 = 12.2
-  DeepStream 6.3 / 6.2 / 6.1.1 / 6.1 = 11.4
-  DeepStream 6.0.1 / 6.0 = 10.2
-  ```
-
-3.2. Make the libs
-
-```
-make -C nvdsinfer_custom_impl_Yolo_pose clean && make -C nvdsinfer_custom_impl_Yolo_pose
-make clean && make
+```bash
+export CUDA_VER=12.1
+make -C nvdsinfer_custom_impl_Yolo_pose clean
+make -C nvdsinfer_custom_impl_Yolo_pose
 ```
 
-**NOTE**: To use the Python code, you need to install the DeepStream Python bindings.
+### 3. C++ uygulamasını derleyin (opsiyonel)
 
-Reference: https://github.com/NVIDIA-AI-IOT/deepstream_python_apps
-
-
-* x86 platform: 
-
-  ```
-  pip3 install https://github.com/NVIDIA-AI-IOT/deepstream_python_apps/releases/download/v1.2.2/pyds-1.2.2-cp312-cp312-linux_x86_64.whl
-  ```
-
-* Jetson platform:
-
-  ```
-  pip3 install https://github.com/NVIDIA-AI-IOT/deepstream_python_apps/releases/download/v1.2.2/pyds-1.2.2-cp312-cp312-linux_aarch64.whl
-  ```
-
-**NOTE**: It is recommended to use Python virtualenv.
-
-**NOTE**: The steps above only work on **DeepStream 8.0**. For previous versions, please check the files on the `NVIDIA-AI-IOT/deepstream_python_apps` repo.
-
-#### 3. Run
-
-* C code
-
-  ```
-  ./deepstream -s file:///opt/nvidia/deepstream/deepstream/samples/streams/sample_1080p_h264.mp4 -c config_infer_primary_yoloV8_pose.txt
-  ```
-
-* Python code
-
-  ```
-  python3 deepstream.py -s file:///opt/nvidia/deepstream/deepstream/samples/streams/sample_1080p_h264.mp4 -c config_infer_primary_yoloV8_pose.txt
-  ```
-
-**NOTE**: The TensorRT engine file may take a very long time to generate (sometimes more than 10 minutes).
-
-**NOTE**: To change the source
-
-```
--s file:// or rtsp:// or http://
---source file:// or rtsp:// or http://
+```bash
+make clean
+make
 ```
 
-**NOTE**: To change the infer config file (example for config_infer.txt file)
+## Model Hazırlama
 
-```
--c config_infer.txt
---infer-config config_infer.txt
-```
+### YOLOv8-Pose modelini ONNX'e çevirin
 
-**NOTE**: To change the nvstreammux batch-size (example for 2; default: 1)
-
-```
--b 2
---streammux-batch-size 2
+```bash
+python3 utils/export_yoloV8_pose.py -w your_model.pt --dynamic
 ```
 
-**NOTE**: To change the nvstreammux width (example for 1280; default: 1920)
+Bu komut şunları oluşturur:
+- `your_model.onnx` - ONNX model dosyası
+- `labels.txt` - Sınıf isimleri
 
-```
--w 1280
---streammux-width 1280
-```
+## Konfigürasyon
 
-**NOTE**: To change the nvstreammux height (example for 720; default: 1080)
+`config_infer_primary_yoloV8_pose.txt` dosyasını düzenleyin:
 
-```
--e 720
---streammux-height 720
-```
+```ini
+[property]
+onnx-file=your_model.onnx
+model-engine-file=your_model.onnx_b1_gpu0_fp32.engine
+labelfile-path=labels.txt
+num-detected-classes=4  # Sınıf sayınıza göre ayarlayın
 
-**NOTE**: To change the GPU id (example for 1; default: 0)
-
-```
--g 1
---gpu-id 1
-```
-
-##
-
-### NMS configuration
-
-For now, the `nms-iou-threshold` is fixed to `0.45`.
-
-**NOTE**: Make sure to set `cluster-mode=4` in the config_infer file.
-
-##
-
-### Detection threshold configuration
-
-```
 [class-attrs-all]
-pre-cluster-threshold=0.25
+pre-cluster-threshold=0.45  # Confidence threshold
 ```
 
-##
+## Kullanım
 
-My projects: https://www.youtube.com/MarcosLucianoTV
+### Python ile
+
+```bash
+# Video dosyası
+python3 deepstream.py -s file:///path/to/video.mp4 -c config_infer_primary_yoloV8_pose.txt
+
+# RTSP stream
+python3 deepstream.py -s rtsp://camera_ip:port/stream -c config_infer_primary_yoloV8_pose.txt
+
+# Parametreler
+python3 deepstream.py \
+  -s file:///path/to/video.mp4 \
+  -c config_infer_primary_yoloV8_pose.txt \
+  -w 1920 \
+  -e 1080 \
+  -g 0
+```
+
+### C++ ile
+
+```bash
+./deepstream -s file:///path/to/video.mp4 -c config_infer_primary_yoloV8_pose.txt
+```
+
+## Parametreler
+
+| Parametre | Kısaltma | Açıklama | Varsayılan |
+|-----------|----------|----------|------------|
+| --source | -s | Video kaynağı (file:// veya rtsp://) | Zorunlu |
+| --infer-config | -c | Config dosyası | Zorunlu |
+| --streammux-width | -w | Stream genişliği | 1920 |
+| --streammux-height | -e | Stream yüksekliği | 1080 |
+| --gpu-id | -g | GPU ID | 0 |
+| --streammux-batch-size | -b | Batch size | 1 |
+
+## Çıktı
+
+Uygulama şunları görselleştirir:
+- **Mavi kutular**: Tespit edilen nesneler
+- **Beyaz noktalar**: Pose keypoint'leri
+- **Mavi çizgiler**: Skeleton bağlantıları
+- **Metin**: Sınıf adı ve confidence skoru
+
+## Performans
+
+- ~18 FPS @ 1920x1080 (RTX 3090)
+- Gerçek zamanlı işleme
+- GPU bellek kullanımı: ~2GB
+
+## Proje Yapısı
+
+```
+DeepStream-Yolo-Pose/
+├── deepstream.py                          # Python uygulaması
+├── deepstream.c                           # C++ uygulaması
+├── config_infer_primary_yoloV8_pose.txt  # Model config
+├── labels.txt                             # Sınıf isimleri
+├── nvdsinfer_custom_impl_Yolo_pose/      # Custom parser
+│   ├── nvdsparsepose_Yolo.cpp
+│   └── Makefile
+├── utils/
+│   └── export_yoloV8_pose.py             # Model export script
+└── modules/                               # Yardımcı modüller
+```
+
+## Sorun Giderme
+
+### Engine dosyası oluşturulamıyor
+```bash
+# Eski engine dosyasını silin
+rm *.engine
+```
+
+### Düşük FPS
+- Batch size'ı artırın
+- Resolution'ı düşürün
+- `interval` parametresini artırın (her N frame'de bir işle)
+
+### Detection yok
+- Threshold'u düşürün (0.25-0.45 arası deneyin)
+- Model input size'ını kontrol edin
+- Video içeriğinin model eğitim datasına uygun olduğundan emin olun
+
+## Lisans
+
+MIT License
+
+## Katkıda Bulunma
+
+Pull request'ler memnuniyetle karşılanır. Büyük değişiklikler için lütfen önce bir issue açın.
+
+## İletişim
+
+Aisoft Yazılım A.Ş.
+- GitHub: [@AisoftYazilimAS](https://github.com/AisoftYazilimAS)
+
+## Teşekkürler
+
+- [NVIDIA DeepStream SDK](https://developer.nvidia.com/deepstream-sdk)
+- [Ultralytics YOLOv8](https://github.com/ultralytics/ultralytics)

@@ -1,1 +1,4 @@
+gal
+left-door
 person
+right-door

@@ -1,0 +1,41 @@
+# Model files
+*.pt
+*.onnx
+*.engine
+*.weights
+*.caffemodel
+
+# Compiled files
+*.o
+*.so
+*.a
+*.out
+deepstream
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+
+# Video files
+*.mp4
+*.avi
+*.mov
+*.mkv
+
+# Labels (if auto-generated)
+# labels.txt
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# System
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log

@@ -1,8 +1,13 @@
 #include <cassert>
 #include <algorithm>
 #include <iostream>
+#include <cmath>
 
 #include "nvdsinfer_custom_impl.h"
+
+static inline float sigmoid(float x) {
+  return 1.0f / (1.0f + std::exp(-x));
+}
 
 #define NMS_THRESH 0.45;
 
@@ -81,16 +86,23 @@ nmsAllClasses(std::vector<NvDsInferInstanceMaskInfo>& binfo)
 static void
 addPoseProposal(const float* output, size_t channelsSize, uint netW, uint netH, size_t n, NvDsInferInstanceMaskInfo& b)
 {
-  size_t kptsSize = channelsSize - 5;
-  b.mask = new float[kptsSize];
-  for (size_t p = 0; p < kptsSize / 3; ++p) {
-    b.mask[p * 3 + 0] = clamp(output[n * channelsSize + p * 3 + 5], 0, netW);
-    b.mask[p * 3 + 1] = clamp(output[n * channelsSize + p * 3 + 6], 0, netH);
-    b.mask[p * 3 + 2] = output[n * channelsSize + p * 3 + 7];
+  // Calculate keypoint start position dynamically
+  const size_t NUM_KEYPOINTS = 17;
+  const size_t BBOX_CHANNELS = 4;
+  size_t numClasses = channelsSize - BBOX_CHANNELS - (NUM_KEYPOINTS * 3);
+  size_t keypointStartIdx = BBOX_CHANNELS + numClasses;
+  
+  size_t kptsSize = NUM_KEYPOINTS * 3 * sizeof(float);
+  b.mask = new float[NUM_KEYPOINTS * 3];
+  
+  for (size_t p = 0; p < NUM_KEYPOINTS; ++p) {
+    b.mask[p * 3 + 0] = clamp(output[n * channelsSize + keypointStartIdx + p * 3 + 0], 0, netW);
+    b.mask[p * 3 + 1] = clamp(output[n * channelsSize + keypointStartIdx + p * 3 + 1], 0, netH);
+    b.mask[p * 3 + 2] = output[n * channelsSize + keypointStartIdx + p * 3 + 2];
   }
   b.mask_width = netW;
   b.mask_height = netH;
-  b.mask_size = sizeof(float) * kptsSize;
+  b.mask_size = kptsSize;
 }
 
 static NvDsInferInstanceMaskInfo
@@ -130,22 +142,51 @@ decodeTensorYoloPose(const float* output, size_t outputSize, size_t channelsSize
     const std::vector<float>& preclusterThreshold)
 {
   std::vector<NvDsInferInstanceMaskInfo> objects;
-
+  
+  // Calculate number of classes dynamically
+  const size_t NUM_KEYPOINTS = 17;  // Fixed for YOLO-Pose
+  const size_t BBOX_CHANNELS = 4;   // x1, y1, x2, y2
+  const size_t KEYPOINT_CHANNELS = NUM_KEYPOINTS * 3;  // x, y, visibility
+  
+  size_t numClasses = channelsSize - BBOX_CHANNELS - KEYPOINT_CHANNELS;
+  
+  std::cout << "DEBUG Parser - outputSize: " << outputSize << ", channelsSize: " << channelsSize 
+            << ", numClasses: " << numClasses << ", threshold: " << preclusterThreshold[0] << std::endl;
+  
   for (size_t n = 0; n < outputSize; ++n) {
-    float maxProb = output[n * channelsSize + 4];
-
-    if (maxProb < preclusterThreshold[0]) {
-      continue;
-    }
-
+    // YOLOv8 outputs are already in xyxy format and sigmoid applied
     float x1 = output[n * channelsSize + 0];
     float y1 = output[n * channelsSize + 1];
     float x2 = output[n * channelsSize + 2];
     float y2 = output[n * channelsSize + 3];
+    
+    // Find best class (no objectness in YOLOv8)
+    float maxClassScore = 0.0f;
+    int bestClassId = 0;
+    
+    for (size_t c = 0; c < numClasses; ++c) {
+      float classScore = output[n * channelsSize + 4 + c];
+      if (classScore > maxClassScore) {
+        maxClassScore = classScore;
+        bestClassId = c;
+      }
+    }
+    
+    float finalScore = maxClassScore;
+    
+    if (n < 5) {  // Debug first 5 detections
+      std::cout << "Detection " << n << ": maxClass=" << maxClassScore 
+                << ", final=" << finalScore << ", classId=" << bestClassId 
+                << ", bbox=(" << x1 << "," << y1 << "," << x2 << "," << y2 << ")" << std::endl;
+    }
+    
+    if (finalScore < preclusterThreshold[0]) {
+      continue;
+    }
 
     NvDsInferInstanceMaskInfo b;
 
-    addBBoxProposal(x1, y1, x2, y2, netW, netH, 0, maxProb, b);
+    addBBoxProposal(x1, y1, x2, y2, netW, netH, bestClassId, finalScore, b);
     addPoseProposal(output, channelsSize, netW, netH, n, b);
 
     objects.push_back(b);

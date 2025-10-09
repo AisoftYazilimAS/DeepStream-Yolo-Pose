@@ -139,7 +139,7 @@ def parse_pose_from_meta(batch_meta, frame_meta, obj_meta):
         circle_params.bg_color.alpha = 1.0
         display_meta.num_circles += 1
 
-    for i in range(num_joints + 2):
+    for i in range(len(skeleton)):
         data = obj_meta.mask_params.get_mask_array()
 
         x1 = (data[(skeleton[i][0] - 1) * 3 + 0] - pad_x) / gain
@@ -180,12 +180,16 @@ def nvosd_sink_pad_buffer_probe(pad, info, user_data):
         except StopIteration:
             break
 
+        obj_count = 0
         l_obj = frame_meta.obj_meta_list
         while l_obj:
             try:
                 obj_meta = pyds.NvDsObjectMeta.cast(l_obj.data)
             except StopIteration:
                 break
+
+            obj_count += 1
+            sys.stdout.write(f"Detection: class_id={obj_meta.class_id}, conf={obj_meta.confidence:.2f}, bbox=({obj_meta.rect_params.left:.0f},{obj_meta.rect_params.top:.0f},{obj_meta.rect_params.width:.0f},{obj_meta.rect_params.height:.0f})\n")
 
             parse_pose_from_meta(batch_meta, frame_meta, obj_meta)
             set_custom_bbox(obj_meta)
@@ -194,6 +198,9 @@ def nvosd_sink_pad_buffer_probe(pad, info, user_data):
                 l_obj = l_obj.next
             except StopIteration:
                 break
+
+        if obj_count > 0:
+            sys.stdout.write(f"Frame {frame_meta.frame_num}: {obj_count} detections\n")
 
         perf_struct[frame_meta.source_id].update_fps()
 
@@ -209,14 +216,22 @@ def uridecodebin_child_added_callback(child_proxy, Object, name, user_data):
     if name.find("decodebin") != -1:
         Object.connect("child-added", uridecodebin_child_added_callback, user_data)
     elif name.find("nvv4l2decoder") != -1:
-        Object.set_property("drop-frame-interval", 0)
-        Object.set_property("num-extra-surfaces", 1)
-        Object.set_property("qos", 0)
+        try:
+            Object.set_property("drop-frame-interval", 0)
+            Object.set_property("num-extra-surfaces", 1)
+        except:
+            pass
         if JETSON:
-            Object.set_property("enable-max-performance", 1)
+            try:
+                Object.set_property("enable-max-performance", 1)
+            except:
+                pass
         else:
-            Object.set_property("cudadec-memtype", 0)
-            Object.set_property("gpu-id", GPU_ID)
+            try:
+                Object.set_property("cudadec-memtype", 0)
+                Object.set_property("gpu-id", GPU_ID)
+            except:
+                pass
 
 
 def uridecodebin_pad_added_callback(decodebin, pad, user_data):
