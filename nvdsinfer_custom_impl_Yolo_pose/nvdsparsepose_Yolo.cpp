@@ -24,12 +24,17 @@
  */
 
 #include <algorithm>
+#include <cmath>
 
 #include "nvdsinfer_custom_impl.h"
 
 #include "utils.h"
 
 #define NMS_THRESH 0.45;
+
+static inline float sigmoid(float x) {
+  return 1.0f / (1.0f + expf(-x));
+}
 
 extern "C" bool
 NvDsInferParseYoloPose(std::vector<NvDsInferLayerInfo> const& outputLayersInfo, NvDsInferNetworkInfo const& networkInfo,
@@ -94,12 +99,18 @@ static void
 addPoseProposal(const float* output, const uint& channelsSize, const uint& netW, const uint& netH, const uint& b,
     NvDsInferInstanceMaskInfo& bbi)
 {
-  uint kptsSize = channelsSize - 5;
+  const uint NUM_KEYPOINTS = 17;
+  const uint BBOX_CHANNELS = 4;
+  const uint KEYPOINT_CHANNELS = NUM_KEYPOINTS * 3;
+  uint numClasses = channelsSize - BBOX_CHANNELS - KEYPOINT_CHANNELS;
+  uint keypointStartIdx = BBOX_CHANNELS + numClasses;
+  
+  uint kptsSize = KEYPOINT_CHANNELS;
   bbi.mask = new float[kptsSize];
-  for (uint p = 0; p < kptsSize / 3; ++p) {
-    bbi.mask[p * 3 + 0] = clamp(output[b * channelsSize + p * 3 + 5], 0, netW);
-    bbi.mask[p * 3 + 1] = clamp(output[b * channelsSize + p * 3 + 6], 0, netH);
-    bbi.mask[p * 3 + 2] = output[b * channelsSize + p * 3 + 7];
+  for (uint p = 0; p < NUM_KEYPOINTS; ++p) {
+    bbi.mask[p * 3 + 0] = clamp(output[b * channelsSize + keypointStartIdx + p * 3 + 0], 0, netW);
+    bbi.mask[p * 3 + 1] = clamp(output[b * channelsSize + keypointStartIdx + p * 3 + 1], 0, netH);
+    bbi.mask[p * 3 + 2] = output[b * channelsSize + keypointStartIdx + p * 3 + 2];
   }
   bbi.mask_width = netW;
   bbi.mask_height = netH;
@@ -148,12 +159,33 @@ decodeTensorYoloPose(const float* output, const uint& outputSize, const uint& ch
     const uint& netH, const std::vector<float>& preclusterThreshold)
 {
   std::vector<NvDsInferInstanceMaskInfo> binfo;
+  static bool first_run = true;
+  if (first_run) {
+    std::cout << "DEBUG Parser - outputSize: " << outputSize << ", channelsSize: " << channelsSize 
+              << ", numClasses: 4, threshold: " << preclusterThreshold[0] << std::endl;
+    first_run = false;
+  }
 
   for (uint b = 0; b < outputSize; ++b) {
-    float maxProb = output[b * channelsSize + 4];
+    int maxIndex = 0;
+    float maxClassScore = 0.0f;
+
+    for (uint c = 0; c < 4; ++c) {
+      float classScore = output[b * channelsSize + 4 + c];
+      if (classScore > maxClassScore) {
+        maxClassScore = classScore;
+        maxIndex = c;
+      }
+    }
+    float maxProb = maxClassScore;
 
     if (maxProb < preclusterThreshold[0]) {
       continue;
+    }
+
+    if (binfo.size() < 5) {
+      std::cout << "Detection " << binfo.size() << ": maxClass=" << maxClassScore 
+                << ", final=" << maxProb << ", classId=" << maxIndex << std::endl;
     }
 
     float bxc = output[b * channelsSize + 0];
@@ -168,7 +200,7 @@ decodeTensorYoloPose(const float* output, const uint& outputSize, const uint& ch
 
     NvDsInferInstanceMaskInfo bbi;
 
-    addBBoxProposal(bx1, by1, bx2, by2, netW, netH, 0, maxProb, bbi);
+    addBBoxProposal(bx1, by1, bx2, by2, netW, netH, maxIndex, maxProb, bbi);
     addPoseProposal(output, channelsSize, netW, netH, b, bbi);
 
     binfo.push_back(bbi);
@@ -184,7 +216,17 @@ decodeTensorYoloPoseE(const float* output, const uint& outputSize, const uint& c
   std::vector<NvDsInferInstanceMaskInfo> binfo;
 
   for (uint b = 0; b < outputSize; ++b) {
-    float maxProb = output[b * channelsSize + 4];
+    int maxIndex = 0;
+    float maxClassScore = 0.0f;
+
+    for (uint c = 0; c < 4; ++c) {
+      float classScore = output[b * channelsSize + 4 + c];
+      if (classScore > maxClassScore) {
+        maxClassScore = classScore;
+        maxIndex = c;
+      }
+    }
+    float maxProb = maxClassScore;
 
     if (maxProb < preclusterThreshold[0]) {
       continue;
@@ -197,7 +239,7 @@ decodeTensorYoloPoseE(const float* output, const uint& outputSize, const uint& c
 
     NvDsInferInstanceMaskInfo bbi;
 
-    addBBoxProposal(bx1, by1, bx2, by2, netW, netH, 0, maxProb, bbi);
+    addBBoxProposal(bx1, by1, bx2, by2, netW, netH, maxIndex, maxProb, bbi);
     addPoseProposal(output, channelsSize, netW, netH, b, bbi);
 
     binfo.push_back(bbi);
