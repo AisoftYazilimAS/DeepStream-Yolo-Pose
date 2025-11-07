@@ -183,10 +183,10 @@ decodeTensorYoloPose(const float* output, const uint& outputSize, const uint& ch
       continue;
     }
 
-    if (binfo.size() < 5) {
+    /*if (binfo.size() < 5) {
       std::cout << "Detection " << binfo.size() << ": maxClass=" << maxClassScore 
                 << ", final=" << maxProb << ", classId=" << maxIndex << std::endl;
-    }
+    }*/
 
     float bxc = output[b * channelsSize + 0];
     float byc = output[b * channelsSize + 1];
