@@ -7,7 +7,7 @@ import torch
 import torch.nn as nn
 from copy import deepcopy
 from ultralytics import YOLO
-from ultralytics.yolo.utils.torch_utils import select_device
+from ultralytics.utils.torch_utils import select_device
 from ultralytics.nn.modules import C2f, Detect, RTDETRDecoder
 
 
@@ -28,6 +28,7 @@ def suppress_warnings():
 
 def yolov8_export(weights, device):
     model = YOLO(weights)
+    yolo_model = model
     model = deepcopy(model.model).to(device)
     for p in model.parameters():
         p.requires_grad = False
@@ -41,7 +42,7 @@ def yolov8_export(weights, device):
             m.format = 'onnx'
         elif isinstance(m, C2f):
             m.forward = m.forward_split
-    return model
+    return model, yolo_model
 
 
 def main(args):
@@ -52,7 +53,7 @@ def main(args):
     print('Opening YOLOv8-Pose model\n')
 
     device = select_device('cpu')
-    model = yolov8_export(args.weights, device)
+    model, yolo_model = yolov8_export(args.weights, device)
 
     model = nn.Sequential(model, DeepStreamOutput())
 
@@ -83,6 +84,13 @@ def main(args):
         onnx.save(model_onnx, onnx_output_file)
 
     print('Done: %s\n' % onnx_output_file)
+
+    # Generate labels file
+    labels_file = 'labels.txt'
+    with open(labels_file, 'w') as f:
+        for name in yolo_model.names.values():
+            f.write(f'{name}\n')
+    print('Labels file created: %s\n' % labels_file)
 
 
 def parse_args():

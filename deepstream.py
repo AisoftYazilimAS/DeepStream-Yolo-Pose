@@ -84,7 +84,8 @@ def set_custom_bbox(obj_meta):
 
 
 def parse_pose_from_meta(frame_meta, obj_meta):
-    num_joints = int(obj_meta.mask_params.size / (sizeof(c_float) * 3))
+    # YOLOv8-Pose: 17 keypoints fixed
+    num_joints = 17
 
     gain = min(obj_meta.mask_params.width / STREAMMUX_WIDTH,
                obj_meta.mask_params.height / STREAMMUX_HEIGHT)
@@ -123,7 +124,7 @@ def parse_pose_from_meta(frame_meta, obj_meta):
         circle_params.bg_color.alpha = 1.0
         display_meta.num_circles += 1
 
-    for i in range(num_joints + 2):
+    for i in range(len(skeleton)):
         data = obj_meta.mask_params.get_mask_array()
         x1 = int((data[(skeleton[i][0] - 1) * 3 + 0] - pad_x) / gain)
         y1 = int((data[(skeleton[i][0] - 1) * 3 + 1] - pad_y) / gain)

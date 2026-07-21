@@ -1,0 +1,10 @@
+*.onnx
+*.engine
+*.pt
+*.so
+*.o
+*.whl
+pyds-*
+deepstream
+__pycache__/
+kurulum.txt
